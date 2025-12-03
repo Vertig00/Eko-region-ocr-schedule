@@ -5,6 +5,8 @@ import pandas as pd
 import requests
 import streamlit as st
 
+from garbage.model.EkoRegion import ScheduleInfo
+from garbage.services.ApiProcessor import ApiProcessor
 from garbage.services.CsvProcessing import CsvProcessing
 from garbage.services.FileService import FileService
 from garbage.services.ImageProcessingService import ImageProcessingService
@@ -66,6 +68,39 @@ if st.session_state.step == 1:
             st.session_state.step = 2
         except Exception as e:
             st.error(f"Błąd pobierania: {e}")
+
+    st.text("Albo skorzystaj z przeglądarki.")
+    api_processor = ApiProcessor()
+    residents, family, building_type, segregating, community = api_processor.get_selector_fields()
+
+    city_value = None
+    street_value = None
+    schedule_data: ScheduleInfo | None = None
+
+    _, community_value = st.selectbox("Gmina:", community, format_func=lambda i: i[0])
+    st.write("Value:", community_value)
+
+    if community_value:
+        cities = api_processor.get_city_data(community_value)
+        _, city_value = st.selectbox("Miejscowość:", [("", None)] + [x.to_selector() for x in cities], format_func=lambda i: i[0])
+        st.write("Value:", city_value)
+
+    if community_value and city_value:
+        streets = api_processor.get_street_data(city_value)
+        _, street_value = st.selectbox("Ulica:", [("", None)] + [x.to_selector() for x in streets], format_func=lambda i: i[0])
+        st.write("Value:", street_value)
+
+    if community_value and city_value and street_value:
+        if st.button("Szukaj"):
+            schedule_data = api_processor.get_schedule_data(community_value, city_value, street_value)
+            if schedule_data:
+                st.success(f"Znaleziono harmonogram {schedule_data.filename}")
+                api_processor.get_schedule_file(schedule_data.pdf_path, save_path)
+                st.success(f"Pobrano harmonogram")
+                st.session_state.step = 2
+            else:
+                st.error("Nie znaleziono harmonogram.")
+
 
 
 # ============================================================
