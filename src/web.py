@@ -8,6 +8,7 @@ from garbage.services.ApiProcessor import ApiProcessor
 from garbage.services.CsvProcessing import CsvProcessing
 from garbage.services.FileService import FileService
 from garbage.services.ImageProcessingService import ImageProcessingService
+from garbage.services.helpers import prepare_selector_from_api_response
 from garbage.services.process import process_schedule_to_csv, process_from_csv
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -31,8 +32,9 @@ if "step" not in st.session_state:
 # KROK 1 – wgrywanie pliku
 # ============================================================
 INPUT_FILE_DIR = RESOURCES_TMP_DIR / "input"
-os.makedirs(INPUT_FILE_DIR, exist_ok=True)
+file_service.create_folder(INPUT_FILE_DIR)
 target_filename = "Harmonogram.pdf"
+INPUT_FILE_PATH = Path(INPUT_FILE_DIR).joinpath(target_filename)
 
 tab1, tab2, tab3 = st.tabs([
     "📁 Wgraj plik",
@@ -40,14 +42,12 @@ tab1, tab2, tab3 = st.tabs([
     "📋 Wyszukiwarka"
 ])
 if st.session_state.step == 1:
-    api_processor = ApiProcessor()
+    api_processor = ApiProcessor(file_service)
     with tab1:
         uploaded_file = st.file_uploader(f"Wgraj plik z harmonogramem w PDF.", type=["pdf"])
-        save_path = os.path.join(INPUT_FILE_DIR, target_filename)
 
         if uploaded_file:
-            with open(save_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
+            file_service.save_file(INPUT_FILE_PATH, uploaded_file)
             st.session_state.step = 2
             st.success("Plik wgrany ✔️")
 
@@ -59,7 +59,7 @@ if st.session_state.step == 1:
                 st.stop()
 
             try:
-                api_processor.get_file_from_url(url, save_path)
+                api_processor.get_file_from_url(url, INPUT_FILE_PATH)
                 st.success(f"Pobrano plik ✔️")
                 st.session_state.step = 2
             except Exception as e:
@@ -75,6 +75,8 @@ if st.session_state.step == 1:
 
         col1, col2, col3, col4 = st.columns(4)
 
+        # TODO: dodaj opcje do requestu
+        # TODO: pokazywanie opcji w zależności od opcji
         with col1:
             _, st.session_state.residents_value = st.selectbox("Obszar zabudowy:", residents, format_func=lambda i: i[0])
             st.write("Value:", st.session_state.residents_value)
@@ -99,13 +101,15 @@ if st.session_state.step == 1:
         with col2:
             if st.session_state.community_value:
                 cities = api_processor.get_city_data(st.session_state.community_value)
-                _, st.session_state.city_value = st.selectbox("Miejscowość:", [("", None)] + [x.to_selector() for x in cities], format_func=lambda i: i[0])
+                # _, st.session_state.city_value = st.selectbox("Miejscowość:", [("", None)] + [x.to_selector() for x in cities], format_func=lambda i: i[0])
+                _, st.session_state.city_value = st.selectbox("Miejscowość:", prepare_selector_from_api_response(cities), format_func=lambda i: i[0])
                 st.write("Value:", st.session_state.city_value)
 
         with col3:
             if st.session_state.community_value and st.session_state.city_value:
                 streets = api_processor.get_street_data(st.session_state.city_value)
-                _, st.session_state.street_value = st.selectbox("Ulica:", [("", None)] + [x.to_selector() for x in streets],
+                # _, st.session_state.street_value = st.selectbox("Ulica:", [("", None)] + [x.to_selector() for x in streets],
+                _, st.session_state.street_value = st.selectbox("Ulica:", prepare_selector_from_api_response(streets),
                                                format_func=lambda i: i[0])
                 st.write("Value:", st.session_state.street_value)
 
@@ -115,7 +119,7 @@ if st.session_state.step == 1:
                 st.session_state.schedule_data = api_processor.get_schedule_data(st.session_state.community_value, st.session_state.city_value, st.session_state.street_value)
                 if st.session_state.schedule_data.filename:
                     st.success(f"{st.session_state.schedule_data.msg}: {st.session_state.schedule_data.filename}")
-                    api_processor.get_schedule_file(st.session_state.schedule_data.pdf_path, save_path)
+                    api_processor.get_schedule_file(st.session_state.schedule_data.pdf_path, INPUT_FILE_PATH)
                     st.success(f"Pobrano harmonogram")
                     st.session_state.step = 2
                 else:
@@ -127,7 +131,7 @@ if st.session_state.step == 1:
 # ============================================================
 # KROK 2 – przetwarzanie
 # ============================================================
-if st.session_state.step == 2:
+if st.session_state.step == 2 and file_service.file_exists(INPUT_FILE_PATH):
     if st.button("Rozpocznij OCR"):
         st.info("⏳ Przetwarzanie w toku...")
 

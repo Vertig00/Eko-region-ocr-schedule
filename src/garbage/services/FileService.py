@@ -58,10 +58,23 @@ class FileService:
     def save_df_to_csv(self, filename, df, index=False, header=False):
         df.to_csv(filename, index=index, header=header)
 
+    def save_file(self, path, data):
+        with open(path, "wb") as f:
+            f.write(data.getbuffer())
+
+    def save_downloaded_file(self, path, data):
+        with open(path, "wb") as f:
+            for chunk in data.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+
     # TODO: obsługa błędów itp
     def find_by_pattern(self, folder, pattern):
         # if os.path.exists(folder):
         files = list(Path(folder).glob(pattern))
         return files
+
+    def file_exists(self, filename):
+        return Path(filename).exists()
 
 

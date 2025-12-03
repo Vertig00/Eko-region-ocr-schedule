@@ -4,31 +4,34 @@ from bs4 import BeautifulSoup
 
 from garbage.model.EkoRegion import City, Street, ScheduleInfo
 from garbage.services.ApiService import ApiService
+from garbage.services.Decorators import first_empty_element
+from garbage.services.FileService import FileService
 
 
 class ApiProcessor:
 
     api = ApiService()
 
+    def __init__(self, file_service: FileService):
+        self.file_service = file_service
+
     def get_selector_fields(self):
         response = self.api.get_page().text
         soup = BeautifulSoup(response, "html.parser")
-        residents_select = soup.find("select", {"class": "residents-select"})
-        family_select = soup.find("select", {"class": "family-select"})
-        building_type_select = soup.find("select", {"class": "high-select"})
-        segregating_select = soup.find("select", {"class": "segregating-select"})
-        community_select = soup.find("select", {"class": "communities-select"})
 
-        #TODO: to samo tylko inny input, popraw,
-        #TODO: czy da się dodać pusty elem na początku inaczej
-        residents = [("", None)] + [(x.get_text(strip=True), x["value"]) for x in residents_select.find_all("option") if x["value"]]
-        family = [("", None)] + [(x.get_text(strip=True), x["value"]) for x in family_select.find_all("option") if x["value"]]
-        building_type = [("", None)] + [(x.get_text(strip=True), x["value"]) for x in building_type_select.find_all("option") if x["value"]]
-        segregating = [("", None)] + [(x.get_text(strip=True), x["value"]) for x in segregating_select.find_all("option") if x["value"]]
-        community = [("", None)] + [(x.get_text(strip=True), x["value"]) for x in community_select.find_all("option") if x["value"]]
+        @first_empty_element
+        def find_selector_values(class_element):
+            selector = soup.find("select", {"class": class_element})
+            return [(x.get_text(strip=True), x["value"]) for x in selector.find_all("option") if
+                                   x["value"]]
+
+        residents = find_selector_values("residents-select")
+        family = find_selector_values("family-select")
+        building_type = find_selector_values("high-select")
+        segregating = find_selector_values("segregating-select")
+        community = find_selector_values("communities-select")
 
         return residents, family, building_type, segregating, community
-
 
     def get_city_data(self, community_id):
         response = self.api.get_city(community_id)
@@ -45,16 +48,12 @@ class ApiProcessor:
         data = ScheduleInfo(filename=response["filename"], msg=response["msg"], pdf_path=response["pdf"])
         return data
 
-
     #TODO: dodaj moze dekorator dla nauki
     def get_schedule_file(self, pdf_location, destination_path):
         try:
             response = self.api.get_schedule_file(pdf_location)
             response.raise_for_status()
-            with open(destination_path, "wb") as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
+            self.file_service.save_downloaded_file(destination_path, response)
         except Exception as e:
             logging.error("Błąd pobierania: {}".format(e))
 
@@ -62,9 +61,6 @@ class ApiProcessor:
         try:
             response = self.api.get_file(url)
             response.raise_for_status()
-            with open(destination_path, "wb") as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
+            self.file_service.save_downloaded_file(destination_path, response)
         except Exception as e:
             logging.error("Błąd pobierania: {}".format(e))
