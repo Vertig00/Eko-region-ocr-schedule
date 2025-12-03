@@ -2,10 +2,8 @@ import os
 from pathlib import Path
 
 import pandas as pd
-import requests
 import streamlit as st
 
-from garbage.model.EkoRegion import ScheduleInfo
 from garbage.services.ApiProcessor import ApiProcessor
 from garbage.services.CsvProcessing import CsvProcessing
 from garbage.services.FileService import FileService
@@ -29,7 +27,6 @@ year = ""
 if "step" not in st.session_state:
     st.session_state.step = 1
 
-
 # ============================================================
 # KROK 1 – wgrywanie pliku
 # ============================================================
@@ -37,70 +34,94 @@ INPUT_FILE_DIR = RESOURCES_TMP_DIR / "input"
 os.makedirs(INPUT_FILE_DIR, exist_ok=True)
 target_filename = "Harmonogram.pdf"
 
+tab1, tab2, tab3 = st.tabs([
+    "📁 Wgraj plik",
+    "🔗 Link",
+    "📋 Wyszukiwarka"
+])
 if st.session_state.step == 1:
-    uploaded_file = st.file_uploader(f"Wgraj plik z harmonogramem w PDF.", type=["pdf"])
-    st.markdown("Harmonogram dostępny na stronie https://eko-region.pl/")
-    save_path = os.path.join(INPUT_FILE_DIR, target_filename)
-
-    if uploaded_file:
-        with open(save_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-        st.session_state.step = 2
-        st.success("Plik wgrany ✔️")
-
-    st.text("Albo wklej link do pliku harmonogramu.")
-    url = st.text_input("Link:", value="")
-    if st.button("📥 Pobierz plik"):
-        if not url:
-            st.error("Podaj link")
-            st.stop()
-
-        try:
-            response = requests.get(url, stream=True)
-            response.raise_for_status()
-
-            with open(save_path, "wb") as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-
-            st.success(f"Pobrano plik ✔️")
-            st.session_state.step = 2
-        except Exception as e:
-            st.error(f"Błąd pobierania: {e}")
-
-    st.text("Albo skorzystaj z przeglądarki.")
     api_processor = ApiProcessor()
-    residents, family, building_type, segregating, community = api_processor.get_selector_fields()
+    with tab1:
+        uploaded_file = st.file_uploader(f"Wgraj plik z harmonogramem w PDF.", type=["pdf"])
+        save_path = os.path.join(INPUT_FILE_DIR, target_filename)
 
-    city_value = None
-    street_value = None
-    schedule_data: ScheduleInfo | None = None
+        if uploaded_file:
+            with open(save_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            st.session_state.step = 2
+            st.success("Plik wgrany ✔️")
 
-    _, community_value = st.selectbox("Gmina:", community, format_func=lambda i: i[0])
-    st.write("Value:", community_value)
+    with tab2:
+        url = st.text_input("Link:", value="")
+        if st.button("📥 Pobierz plik"):
+            if not url:
+                st.error("Podaj link")
+                st.stop()
 
-    if community_value:
-        cities = api_processor.get_city_data(community_value)
-        _, city_value = st.selectbox("Miejscowość:", [("", None)] + [x.to_selector() for x in cities], format_func=lambda i: i[0])
-        st.write("Value:", city_value)
-
-    if community_value and city_value:
-        streets = api_processor.get_street_data(city_value)
-        _, street_value = st.selectbox("Ulica:", [("", None)] + [x.to_selector() for x in streets], format_func=lambda i: i[0])
-        st.write("Value:", street_value)
-
-    if community_value and city_value and street_value:
-        if st.button("Szukaj"):
-            schedule_data = api_processor.get_schedule_data(community_value, city_value, street_value)
-            if schedule_data:
-                st.success(f"Znaleziono harmonogram {schedule_data.filename}")
-                api_processor.get_schedule_file(schedule_data.pdf_path, save_path)
-                st.success(f"Pobrano harmonogram")
+            try:
+                api_processor.get_file_from_url(url, save_path)
+                st.success(f"Pobrano plik ✔️")
                 st.session_state.step = 2
-            else:
-                st.error("Nie znaleziono harmonogram.")
+            except Exception as e:
+                st.error(f"Błąd pobierania: {e}")
 
+    with tab3:
+        residents, family, building_type, segregating, community = api_processor.get_selector_fields()
+
+        for key in ["residents_value", "family_value", "segregating_value", "building_type_value", "community_value",
+                    "city_value", "street_value", "schedule_data"]:
+            if key not in st.session_state:
+                st.session_state[key] = ""
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            _, st.session_state.residents_value = st.selectbox("Obszar zabudowy:", residents, format_func=lambda i: i[0])
+            st.write("Value:", st.session_state.residents_value)
+
+        with col2:
+            _, st.session_state.family_value = st.selectbox("Rodzaj zabudowy:", family, format_func=lambda i: i[0])
+            st.write("Value:", st.session_state.family_value)
+
+        with col3:
+            _, st.session_state.segregating_value = st.selectbox("Segregacja:", segregating, format_func=lambda i: i[0])
+            st.write("Value:", st.session_state.segregating_value)
+
+        with col4:
+            _, st.session_state.building_type_value = st.selectbox("Typ zabudowy:", building_type,
+                                                                   format_func=lambda i: i[0])
+            st.write("Value:", st.session_state.building_type_value)
+
+        with col1:
+            _, st.session_state.community_value = st.selectbox("Gmina:", community, format_func=lambda i: i[0])
+            st.write("Value:", st.session_state.community_value)
+
+        with col2:
+            if st.session_state.community_value:
+                cities = api_processor.get_city_data(st.session_state.community_value)
+                _, st.session_state.city_value = st.selectbox("Miejscowość:", [("", None)] + [x.to_selector() for x in cities], format_func=lambda i: i[0])
+                st.write("Value:", st.session_state.city_value)
+
+        with col3:
+            if st.session_state.community_value and st.session_state.city_value:
+                streets = api_processor.get_street_data(st.session_state.city_value)
+                _, st.session_state.street_value = st.selectbox("Ulica:", [("", None)] + [x.to_selector() for x in streets],
+                                               format_func=lambda i: i[0])
+                st.write("Value:", st.session_state.street_value)
+
+        # TODO: bład jak nie ma
+        if st.session_state.community_value and st.session_state.city_value:
+            if st.button("Szukaj"):
+                st.session_state.schedule_data = api_processor.get_schedule_data(st.session_state.community_value, st.session_state.city_value, st.session_state.street_value)
+                if st.session_state.schedule_data.filename:
+                    st.success(f"{st.session_state.schedule_data.msg}: {st.session_state.schedule_data.filename}")
+                    api_processor.get_schedule_file(st.session_state.schedule_data.pdf_path, save_path)
+                    st.success(f"Pobrano harmonogram")
+                    st.session_state.step = 2
+                else:
+                    st.error(st.session_state.schedule_data.msg)
+
+        #TODO: przycisk do pobierania
 
 
 # ============================================================
@@ -115,8 +136,7 @@ if st.session_state.step == 2:
 
         st.success("Przetwarzanie zakończone!")
         st.session_state.step = 3
-        st.rerun()   # odśwież ekran, aby wykryć nowy plik
-
+        st.rerun()  # odśwież ekran, aby wykryć nowy plik
 
 # ============================================================
 # KROK 3 – porównywanie i edycja
@@ -162,8 +182,9 @@ if st.session_state.step == 3:
 # KROK 4 – generowanie i pobieranie pliku ICS
 # ============================================================
 if st.session_state.step == 4:
+    #TODO: inna ścieżka do trzymania .ics
     ICS_PATH = BASE_DIR / "src"
-    ics_file = file_service.find_by_pattern(ICS_PATH, "*.ics")[0].name # TODO: co jak nie ma ?
+    ics_file = file_service.find_by_pattern(ICS_PATH, "*.ics")[0].name  # TODO: co jak nie ma ?
 
     if os.path.exists(ics_file):
         st.success(f"Plik `{ics_file}` jest gotowy do pobrania!")
@@ -177,6 +198,9 @@ if st.session_state.step == 4:
             mime="text/calendar"
         )
         st.session_state.step = 1
+
+
+#TODO: wyczyść pliki tymczasowe
 
 # ============================================================
 # Inne Elementy

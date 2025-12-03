@@ -18,11 +18,15 @@ class ApiProcessor:
         building_type_select = soup.find("select", {"class": "high-select"})
         segregating_select = soup.find("select", {"class": "segregating-select"})
         community_select = soup.find("select", {"class": "communities-select"})
+
+        #TODO: to samo tylko inny input, popraw,
+        #TODO: czy da się dodać pusty elem na początku inaczej
         residents = [("", None)] + [(x.get_text(strip=True), x["value"]) for x in residents_select.find_all("option") if x["value"]]
         family = [("", None)] + [(x.get_text(strip=True), x["value"]) for x in family_select.find_all("option") if x["value"]]
         building_type = [("", None)] + [(x.get_text(strip=True), x["value"]) for x in building_type_select.find_all("option") if x["value"]]
         segregating = [("", None)] + [(x.get_text(strip=True), x["value"]) for x in segregating_select.find_all("option") if x["value"]]
         community = [("", None)] + [(x.get_text(strip=True), x["value"]) for x in community_select.find_all("option") if x["value"]]
+
         return residents, family, building_type, segregating, community
 
 
@@ -41,9 +45,22 @@ class ApiProcessor:
         data = ScheduleInfo(filename=response["filename"], msg=response["msg"], pdf_path=response["pdf"])
         return data
 
+
+    #TODO: dodaj moze dekorator dla nauki
     def get_schedule_file(self, pdf_location, destination_path):
         try:
             response = self.api.get_schedule_file(pdf_location)
+            response.raise_for_status()
+            with open(destination_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+        except Exception as e:
+            logging.error("Błąd pobierania: {}".format(e))
+
+    def get_file_from_url(self, url, destination_path):
+        try:
+            response = self.api.get_file(url)
             response.raise_for_status()
             with open(destination_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):

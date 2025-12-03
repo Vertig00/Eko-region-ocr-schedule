@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 
-
 @dataclass
 class City:
     title: str
@@ -12,7 +11,7 @@ class City:
 
 @dataclass
 class ScheduleInfo:
-    filename: int
+    filename: str
     msg: str
     pdf_path: str
 

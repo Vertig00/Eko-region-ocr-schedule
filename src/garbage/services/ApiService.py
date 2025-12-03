@@ -1,11 +1,14 @@
 import requests
+from requests import Response
 
 
 class ApiService:
 
     BASE_URL = "https://eko-region.pl"
 
-    def _api_caller(self, request_type: str, url, data=None) -> requests.Response:
+
+    # TODO: czy 2 api_caller potrzebne ?
+    def _api_caller(self, request_type: str, url, data=None) -> Response | None:
         headers = self._set_headers()
 
         # TODO: obsługa błędów > 400
@@ -15,7 +18,7 @@ class ApiService:
         else:
             print(f"{response.status_code}: {response.text}")
 
-    def _api_caller_file(self, request_type: str, url, data=None, stream=True) -> requests.Response:
+    def _api_caller_file(self, request_type: str, url, data=None, stream=True) -> Response | None:
         response = self._make_api_call(request_type, url, headers=None, data=data, stream=stream)
         if response.status_code == 200:
             return response
@@ -75,7 +78,13 @@ class ApiService:
                                 })
 
     def get_schedule_file(self, pdf_location):
-        return self._make_api_call(request_type="GET",
+        return self._api_caller_file(request_type="GET",
                                    url=f"{self.BASE_URL}{pdf_location}",
+                                   stream=True
+                                   )
+
+    def get_file(self, url):
+        return self._api_caller_file(request_type="GET",
+                                   url=url,
                                    stream=True
                                    )
