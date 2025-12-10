@@ -1,7 +1,7 @@
 import re
 from datetime import date
-
 import fitz
+
 import logging
 
 logger = logging.getLogger(__name__)

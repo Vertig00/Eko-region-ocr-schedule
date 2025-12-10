@@ -119,7 +119,7 @@ class DataProcessor:
                     temp = list_of_single.copy()
                     temp[idx] = "i"
                     check_value = "".join(x.__str__() for x in temp).split("i")
-                    check_value = [int(x) for x in check_value]
+                    check_value = [int(x) for x in check_value if x]
                     logger.debug(f"RESOLVE ({number}) -> {check_value}")
                     is_consecutive = all(a < b for a, b in zip(check_value, check_value[1:]))
                     if is_consecutive:

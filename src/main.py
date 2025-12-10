@@ -51,7 +51,8 @@ def main():
         process_from_csv(BASE_DIR, args.path, args.year)
     else:
         # pdf_path = BASE_DIR / "resources" / "Pabianice-Gmina-7.pdf"
-        pdf_path = BASE_DIR / "resources" / "brzeznio_10.pdf"
+        # pdf_path = BASE_DIR / "resources" / "brzeznio_10.pdf"
+        pdf_path = BASE_DIR / "resources" / "Dobron_8.pdf"
         # pdf_path = BASE_DIR / "resources" / "pabianice.pdf"
         process_schedule(BASE_DIR, pdf_path)
 

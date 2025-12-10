@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -33,4 +34,5 @@ class CsvProcessing:
         df_filled = df.fillna("").astype(str)
         aggr = df_filled.agg(' '.join, axis=0)
         result = aggr.map(lambda x: x.strip())
+        result = result.map(lambda x: re.sub(r'[^\w ]+', '', x, flags=re.UNICODE))
         return pd.DataFrame([result])

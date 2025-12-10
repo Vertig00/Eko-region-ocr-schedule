@@ -3,8 +3,6 @@ from datetime import timedelta
 
 from icalendar import Calendar, Event
 
-# from ics import Calendar, Event
-
 from garbage.model.GarbageCollect import GarbageCollect
 from garbage.services.FileService import FileService
 

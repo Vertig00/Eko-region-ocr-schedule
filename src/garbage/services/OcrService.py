@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 class OcrService:
 
+    MODEL_SUBFOLDER = Path("models")
     TMP_SUBFOLDER = Path("ocr")
     LANGS = ['pl']
     TOLERANCE_Y = 25        # grupowanie wierszy
@@ -28,6 +29,17 @@ class OcrService:
         self.data_file = data_file
         self.dir = self.file_service.temporary_directory / self.TMP_SUBFOLDER
         self.file_service.create_folder(self.dir)
+        self.model_path = self.file_service.base_directory / self.file_service.resources_dir / self.MODEL_SUBFOLDER
+        self._check_models()
+
+
+    def _check_models(self):
+        if not self.file_service.path_exists(self.model_path) or not self.file_service.list_dir(self.model_path):
+            logger.info("Modele EasyOCR nie istnieją, pobieram...")
+            self.reader = easyocr.Reader(['en', 'pl'], model_storage_directory=self.model_path)
+        else:
+            logger.info("Modele EasyOCR już są, używam ich z cache")
+            self.reader = easyocr.Reader(['en', 'pl'], model_storage_directory=self.model_path)
 
     def process(self):
         self.ocr(self.headers_file, self.HEADER_OUTPUT)
@@ -37,8 +49,8 @@ class OcrService:
     def ocr(self, file_path, output_file_path):
         # ====== Wczytanie i OCR ======
         img = cv2.imread(file_path)
-        reader = easyocr.Reader(self.LANGS)
-        results = reader.readtext(img)
+        # reader = easyocr.Reader(self.LANGS)
+        results = self.reader.readtext(img)
 
         # ====== Tworzenie listy elementów ======
         elements = []

@@ -1,6 +1,4 @@
 import csv
-import glob
-import os.path
 import shutil
 from pathlib import Path
 
@@ -10,7 +8,9 @@ from icalendar import Calendar
 
 class FileService:
 
-    _temp_directory = Path("resources/tmp")
+    resources_dir = Path("resources")
+    _temp_directory = resources_dir / Path("tmp")
+
 
     def __init__(self, base_directory: Path):
         self.base_directory = base_directory
@@ -76,5 +76,11 @@ class FileService:
 
     def file_exists(self, filename):
         return Path(filename).exists()
+
+    def path_exists(self, dir):
+        return Path(dir).exists()
+
+    def list_dir(self, path):
+        return list(path.iterdir())
 
 

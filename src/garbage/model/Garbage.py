@@ -1,4 +1,3 @@
-
 class GarbageRegistry:
     registry = []
 
@@ -8,7 +7,6 @@ class GarbageRegistry:
         return garbage_cls
 
 class Garbage:
-
     name = "generic"
     hash_id = "#generic"
     color = "#ff5a00"
