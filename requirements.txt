@@ -1,0 +1,13 @@
+pyyaml
+easyocr
+opencv-python
+numpy
+pandas
+requests
+pytesseract==0.3.13
+Pillow==12.0.0
+icalendar
+dateparser
+beautifulsoup4
+streamlit
+pymupdf
