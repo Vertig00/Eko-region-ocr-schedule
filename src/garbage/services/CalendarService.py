@@ -1,3 +1,4 @@
+import datetime
 import uuid
 from datetime import timedelta
 
@@ -40,8 +41,9 @@ class CalendarService:
         event.add("UID", uuid.uuid4())
         event.add("SUMMARY", f"Śmieci {entry.garbage_type.name}")
         event.add("DESCRIPTION", entry.garbage_type.hash_id)
-        event.add("DSTART", entry.date)
-        event.add("DTEND", entry.date + timedelta(days=1))
+        event.add("DTSTART", entry.date.date())
+        event.add("DTSTAMP", datetime.datetime.now())
+        event.add("DTEND", (entry.date + timedelta(days=1)).date())
         event.add("COMMENT", entry.additional_info)
         event.add("COLOR", entry.garbage_type.color)
         event.add("TRANSP", "TRANSPARENT")
