@@ -1,6 +1,6 @@
 pyyaml
+opencv-python-headless
 easyocr
-opencv-python
 numpy
 pandas
 requests
