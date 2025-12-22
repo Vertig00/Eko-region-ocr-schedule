@@ -39,7 +39,7 @@ class OcrService:
             logger.info("Modele EasyOCR nie istnieją, pobieram...")
         else:
             logger.info("Modele EasyOCR już są, używam ich z cache")
-        self.reader = easyocr.Reader(self.LANGS, model_storage_directory=self.model_path)
+        self.reader = easyocr.Reader(self.LANGS, gpu=False, model_storage_directory=self.model_path)
 
     def process(self):
         self.ocr(self.headers_file, self.HEADER_OUTPUT)
@@ -213,9 +213,6 @@ class OcrService:
     def process_table_image(self, file_path, output_file_path, TOL_Y, TOL_X_GROUP, CELL_MERGE):
         img = cv2.imread(file_path)
         results = self.reader.readtext(img, contrast_ths=0.10, adjust_contrast=1.3)
-
-        for r in results:
-            print(r)
 
         # --- Tworzenie elementów ---
         elements = []

@@ -1,0 +1,10 @@
+.venv
+bin
+smieci
+
+src/test
+src/resources
+
+.gitignore
+.git
+README.md
