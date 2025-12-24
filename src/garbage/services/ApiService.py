@@ -6,7 +6,6 @@ class ApiService:
 
     BASE_URL = "https://eko-region.pl"
 
-
     # TODO: czy 2 api_caller potrzebne ?
     def _api_caller(self, request_type: str, url, data=None) -> Response | None:
         headers = self._set_headers()
@@ -47,41 +46,19 @@ class ApiService:
             "x-requested-with": "XMLHttpRequest"  # obligatory
         }
 
-    def get_page(self):
-        return self._api_caller("GET",
-                                self.BASE_URL,
+    def make_api_call(self, request_type, url):
+        return self._api_caller(request_type.upper(),
+                                url,
                                 )
 
-    def get_city(self, community_id):
-        return self._api_caller("POST",
-                                f"{self.BASE_URL}/scheduler/city",
-                                {"communityId": community_id}
-                                )
+    def get_community(self):
+        return self._api_caller("GET", f"{self.BASE_URL}/harmonogram-odbioru-odpadow/")
 
-    def get_street(self, city_id):
-        return self._api_caller("POST",
-                                f"{self.BASE_URL}/scheduler/street",
-                                {"cityId": city_id}
-                                )
+    def get_cities(self, url):
+        return self._api_caller("GET", url)
 
-    def get_schedule(self, community_id, city_id, street_id):
-        return self._api_caller("POST",
-                                f"{self.BASE_URL}/scheduler/get-scheduler",
-                                {
-                                    "cityId": city_id,
-                                    "streetId": street_id,
-                                    "communityId": community_id,
-                                    "residentsVal": "Residents",
-                                    "familyVal": "OneFamily",
-                                    "highVal": "",
-                                    "segregationVal": "Segregating"
-                                })
-
-    def get_schedule_file(self, pdf_location):
-        return self._api_caller_file(request_type="GET",
-                                   url=f"{self.BASE_URL}{pdf_location}",
-                                   stream=True
-                                   )
+    def get_streets(self, url):
+        return self._api_caller("GET", url)
 
     def get_file(self, url):
         return self._api_caller_file(request_type="GET",

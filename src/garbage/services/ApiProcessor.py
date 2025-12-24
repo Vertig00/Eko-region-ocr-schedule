@@ -2,7 +2,7 @@ import logging
 
 from bs4 import BeautifulSoup
 
-from garbage.model.EkoRegion import City, Street, ScheduleInfo
+from garbage.model.EkoRegion import ResponseData
 from garbage.services.ApiService import ApiService
 from garbage.services.Decorators import first_empty_element
 from garbage.services.FileService import FileService
@@ -15,47 +15,32 @@ class ApiProcessor:
     def __init__(self, file_service: FileService):
         self.file_service = file_service
 
-    def get_selector_fields(self):
-        response = self.api.get_page().text
+    @first_empty_element
+    def get_community(self):
+        response = self.api.get_community().text
         soup = BeautifulSoup(response, "html.parser")
-
-        @first_empty_element
-        def find_selector_values(class_element):
-            selector = soup.find("select", {"class": class_element})
-            return [(x.get_text(strip=True), x["value"]) for x in selector.find_all("option") if
-                                   x["value"]]
-
-        residents = find_selector_values("residents-select")
-        family = find_selector_values("family-select")
-        building_type = find_selector_values("high-select")
-        segregating = find_selector_values("segregating-select")
-        community = find_selector_values("communities-select")
-
-        return residents, family, building_type, segregating, community
-
-    def get_city_data(self, community_id):
-        response = self.api.get_city(community_id)
-        data = [City(community_id=x["CommunityID"], id=x["ID"], title=x["Title"]) for x in response.json()]
+        data = { elem.text: elem.get("href") for elem in soup.select('p.elementor-heading-title a') }
         return data
 
-    def get_street_data(self, city_id):
-        response = self.api.get_street(city_id)
-        data = [Street(city_id=x["CityID"], id=x["ID"], title=x["Title"]) for x in response.json()]
-        return data
+    @first_empty_element
+    def get_city(self, city_url):
+        api_response = self.api.get_cities(city_url).text
+        soup = BeautifulSoup(api_response, "html.parser")
 
-    def get_schedule_data(self, community_id, city_id, street_id):
-        response = self.api.get_schedule(community_id, city_id, street_id).json()
-        data = ScheduleInfo(filename=response["filename"], msg=response["msg"], pdf_path=response["pdf"])
-        return data
+        for selector, processor in [
+            ("div.cities_list > div", self._process_city),
+            ("div.streets_list > div", self._process_streets),
+        ]:
+            elements = soup.select(selector)
+            if elements:
+                return processor(elements)
 
-    #TODO: dodaj moze dekorator dla nauki
-    def get_schedule_file(self, pdf_location, destination_path):
-        try:
-            response = self.api.get_schedule_file(pdf_location)
-            response.raise_for_status()
-            self.file_service.save_downloaded_file(destination_path, response)
-        except Exception as e:
-            logging.error("Błąd pobierania: {}".format(e))
+    @first_empty_element
+    def get_streets(self, url):
+        api_response = self.api.get_streets(url).text
+        soup = BeautifulSoup(api_response, "html.parser")
+        selector = soup.select("div.streets_list > div")
+        return self._process_streets(selector)
 
     def get_file_from_url(self, url, destination_path):
         try:
@@ -64,3 +49,43 @@ class ApiProcessor:
             self.file_service.save_downloaded_file(destination_path, response)
         except Exception as e:
             logging.error("Błąd pobierania: {}".format(e))
+
+    def _process_city(self, selector):
+        response = []
+        for element in selector:
+            city_name = element.find('strong').get_text(strip=True)
+
+            streets = element.select_one("a.see-streets")
+            if streets:
+                response.append(ResponseData(name=city_name, inhabited=None, uninhabited=None, has_street=True,
+                              streets_link=streets.get("href")))
+            else:
+                inhabited = None
+                uninhabited = None
+                for a in element.select('a.see-file'):
+                    text = a.get_text(strip=True).lower()
+                    href = a.get('href')
+                    match text:
+                        case t if 'niezamieszkałe' in t:
+                            uninhabited = href
+                        case t if 'zamieszkałe' in t:
+                            inhabited = href
+                response.append(ResponseData(name=city_name, inhabited=inhabited, uninhabited=uninhabited))
+        return response
+
+    def _process_streets(self, selector):
+        response = []
+        for element in selector:
+            city_name = element.find('strong').get_text(strip=True)
+
+            inhabited, uninhabited = None, None
+            for a in element.select('a.see-file'):
+                text = a.get_text(strip=True).lower()
+                href = a.get('href')
+                match text:
+                    case t if 'niezamieszkałe' in t:
+                        uninhabited = href
+                    case t if 'zamieszkałe' in t:
+                        inhabited = href
+            response.append(ResponseData(name=city_name, inhabited=inhabited, uninhabited=uninhabited))
+        return response

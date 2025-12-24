@@ -1,26 +1,17 @@
 from dataclasses import dataclass
+from typing import Optional
 
-#TODO: to_selector interface
-@dataclass(frozen=True)
-class City:
-    title: str
-    community_id: str
-    id: str
+@dataclass
+class ResponseData:
+    name: str
+    inhabited: Optional[str]
+    uninhabited: Optional[str]
+    has_street: bool = False
+    streets_link: Optional[str] = None
 
-    def to_selector(self):
-        return (self.title, self.id)
+    def __post_init__(self):
+        if self.uninhabited and self.uninhabited == "#":
+            self.uninhabited = None
 
-@dataclass(frozen=True)
-class Street:
-    title: str
-    city_id: str
-    id: str
-
-    def to_selector(self):
-        return (self.title, self.id)
-
-@dataclass(frozen=True)
-class ScheduleInfo:
-    filename: str
-    msg: str
-    pdf_path: str
+        if self.inhabited and self.inhabited == "#":
+            self.inhabited = None

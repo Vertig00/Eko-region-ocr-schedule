@@ -8,7 +8,6 @@ from garbage.services.ApiProcessor import ApiProcessor
 from garbage.services.CsvProcessing import CsvProcessing
 from garbage.services.FileService import FileService
 from garbage.services.ImageProcessingService import ImageProcessingService
-from garbage.services.helpers import prepare_selector_from_api_response
 from garbage.services.process import process_schedule_to_csv, process_from_csv
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -28,6 +27,24 @@ year = ""
 if "step" not in st.session_state:
     st.session_state.step = 1
 
+@st.cache_data
+def get_community_cached():
+    return api_processor.get_community()
+
+def get_cities_cached(community_url):
+    key = f"cities_{community_url}"
+    if key not in st.session_state:
+        with st.spinner(f"Pobieranie listy miejscowości..."):
+            st.session_state[key] = api_processor.get_city(community_url)
+    return st.session_state[key]
+
+def get_streets_cached(city_url):
+    key = f"streets_{city_url}"
+    if key not in st.session_state:
+        with st.spinner(f"Pobieranie ulic..."):
+            st.session_state[key] = api_processor.get_streets(city_url)
+    return st.session_state[key]
+
 # ============================================================
 # KROK 1 – wgrywanie pliku
 # ============================================================
@@ -43,6 +60,7 @@ tab1, tab2, tab3 = st.tabs([
 ])
 if st.session_state.step == 1:
     api_processor = ApiProcessor(file_service)
+    community = get_community_cached()
     with tab1:
         uploaded_file = st.file_uploader(f"Wgraj plik z harmonogramem w PDF.", type=["pdf"])
 
@@ -52,6 +70,7 @@ if st.session_state.step == 1:
             st.success("Plik wgrany ✔️")
 
     with tab2:
+        st.markdown("Wklej link do pliku z harmonogramem, który można znaleźć na stronie **[Eko-Region](https://eko-region.pl/harmonogram-odbioru-odpadow/)**")
         url = st.text_input("Link:", value="")
         if st.button("📥 Pobierz plik"):
             if not url:
@@ -65,68 +84,96 @@ if st.session_state.step == 1:
             except Exception as e:
                 st.error(f"Błąd pobierania: {e}")
 
-    with tab3:
-        residents, family, building_type, segregating, community = api_processor.get_selector_fields()
-
-        for key in ["residents_value", "family_value", "segregating_value", "building_type_value", "community_value",
-                    "city_value", "street_value", "schedule_data"]:
+    with (tab3):
+        # --- INICJALIZACJA SESSION STATE ---
+        for key in ["community_value", "city_value", "street_value", "habitant_value", "download_url", "prev_community",
+                    "prev_city"]:
             if key not in st.session_state:
-                st.session_state[key] = ""
+                st.session_state[key] = None
 
-        col1, col2, col3, col4 = st.columns(4)
+        st.selectbox(
+            "Gmina:",
+            options=list(community.keys()),
+            key="community_value"
+        )
 
-        # TODO: dodaj opcje do requestu
-        # TODO: pokazywanie opcji w zależności od opcji
-        with col1:
-            _, st.session_state.residents_value = st.selectbox("Obszar zabudowy:", residents, format_func=lambda i: i[0])
-            st.write("Value:", st.session_state.residents_value)
+        community_url = community.get(st.session_state.community_value)
 
-        with col2:
-            _, st.session_state.family_value = st.selectbox("Rodzaj zabudowy:", family, format_func=lambda i: i[0])
-            st.write("Value:", st.session_state.family_value)
+        # --- RESET zależnych selectboxów przy zmianie gminy ---
+        if st.session_state.get("prev_community") != st.session_state.community_value:
+            st.session_state.city_value = None
+            st.session_state.street_value = None
+            st.session_state.habitant_value = None
+            st.session_state.download_url = None
+            st.session_state.prev_community = st.session_state.community_value
 
-        with col3:
-            _, st.session_state.segregating_value = st.selectbox("Segregacja:", segregating, format_func=lambda i: i[0])
-            st.write("Value:", st.session_state.segregating_value)
+        # --- SELECTBOX MIASTO ---
+        if community_url:
+            cities = get_cities_cached(community_url)
+            st.selectbox(
+                "Miejscowość:",
+                options=cities,
+                format_func=lambda i: i.name if i else "",
+                key="city_value"
+            )
 
-        with col4:
-            _, st.session_state.building_type_value = st.selectbox("Typ zabudowy:", building_type,
-                                                                   format_func=lambda i: i[0])
-            st.write("Value:", st.session_state.building_type_value)
+            city = st.session_state.city_value
 
-        with col1:
-            _, st.session_state.community_value = st.selectbox("Gmina:", community, format_func=lambda i: i[0])
-            st.write("Value:", st.session_state.community_value)
+            # --- RESET zależnych selectboxów przy zmianie miasta ---
+            if st.session_state.get("prev_city") != city:
+                st.session_state.street_value = None
+                st.session_state.habitant_value = None
+                st.session_state.download_url = None
+                st.session_state.prev_city = city
 
-        with col2:
-            if st.session_state.community_value:
-                cities = api_processor.get_city_data(st.session_state.community_value)
-                # _, st.session_state.city_value = st.selectbox("Miejscowość:", [("", None)] + [x.to_selector() for x in cities], format_func=lambda i: i[0])
-                _, st.session_state.city_value = st.selectbox("Miejscowość:", prepare_selector_from_api_response(cities), format_func=lambda i: i[0])
-                st.write("Value:", st.session_state.city_value)
+        # --- SELECTBOX ULICA / WARTOŚĆ ZALEŻNA ---
+        target_obj = None
+        if st.session_state.city_value:
+            if st.session_state.city_value.has_street:
+                streets = get_streets_cached(st.session_state.city_value.streets_link)
+                st.selectbox(
+                    "Ulica:",
+                    options=streets,
+                    format_func=lambda i: i.name if i else "",
+                    key="street_value"
+                )
+                target_obj = st.session_state.street_value
+            else:
+                target_obj = st.session_state.city_value
 
-        with col3:
-            if st.session_state.community_value and st.session_state.city_value:
-                streets = api_processor.get_street_data(st.session_state.city_value)
-                # _, st.session_state.street_value = st.selectbox("Ulica:", [("", None)] + [x.to_selector() for x in streets],
-                _, st.session_state.street_value = st.selectbox("Ulica:", prepare_selector_from_api_response(streets),
-                                               format_func=lambda i: i[0])
-                st.write("Value:", st.session_state.street_value)
+        # --- SELECTBOX TYP NIERUCHOMOŚCI ---
+        if target_obj:
+            st.selectbox(
+                "Rodzaj nieruchomości:",
+                ["Zamieszkałe", "Niezamieszkałe"],
+                key="habitant_value"
+            )
 
-        # TODO: bład jak nie ma
-        if st.session_state.community_value and st.session_state.city_value:
-            if st.button("Szukaj"):
-                st.session_state.schedule_data = api_processor.get_schedule_data(st.session_state.community_value, st.session_state.city_value, st.session_state.street_value)
-                if st.session_state.schedule_data.filename:
-                    st.success(f"{st.session_state.schedule_data.msg}: {st.session_state.schedule_data.filename}")
-                    api_processor.get_schedule_file(st.session_state.schedule_data.pdf_path, INPUT_FILE_PATH)
-                    st.success(f"Pobrano harmonogram")
-                    st.session_state.step = 2
+            # --- DOWNLOAD URL ---
+            if st.session_state.habitant_value == "Zamieszkałe":
+                st.session_state.download_url = getattr(target_obj, "inhabited", None)
+            elif st.session_state.habitant_value == "Niezamieszkałe":
+                st.session_state.download_url = getattr(target_obj, "uninhabited", None)
+            else:
+                st.session_state.download_url = None
+
+            if st.session_state.habitant_value:
+                if st.session_state.download_url:
+                    st.success("Znaleziono harmonogram.")
+                    st.write("URL do pobrania:", st.session_state.download_url)
                 else:
-                    st.error(st.session_state.schedule_data.msg)
+                    st.error("Brak harmonogramu dla podanych parametrów.")
 
-        #TODO: przycisk do pobierania
-
+        # --- PRZYCISK POBIERANIA ---
+        if st.session_state.download_url:
+            name = st.session_state.download_url.split("/")[-1]
+            if st.button(f"Pobierz: {name}"):
+                try:
+                    api_processor.get_file_from_url(st.session_state.download_url, INPUT_FILE_PATH)
+                    st.success("Pobrano plik ✔️")
+                    st.session_state.step = 2
+                except Exception as e:
+                    st.error(f"Błąd pobierania: {e}")
 
 # ============================================================
 # KROK 2 – przetwarzanie
