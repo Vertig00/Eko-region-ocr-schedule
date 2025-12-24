@@ -26,6 +26,19 @@ To run application run
 docker run -p 8501:8501  eko-region-scheduler:latest
 ```
 
+It's also available in docker registry: https://hub.docker.com/repository/docker/vertig00/eko-region-scheduler/general
+
+You can run it using docker compose:
+```cmd
+version: '3'
+services:
+  eko-region-scheduler:
+    container_name: eko-region-scheduler
+    image: vertig00/eko-region-scheduler:latest
+    ports:
+      - 8501:8501
+```
+
 ### Shell script
 
 For those who wants run it locally there is a shell script ready to run (with --help documentation)

@@ -1,0 +1,7 @@
+version: '3'
+services:
+  eko-region-scheduler:
+    container_name: eko-region-scheduler
+    image: vertig00/eko-region-scheduler:latest
+    ports:
+      - 8501:8501
