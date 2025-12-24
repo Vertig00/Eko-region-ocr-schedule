@@ -8,7 +8,8 @@ from garbage.services.ApiProcessor import ApiProcessor
 from garbage.services.CsvProcessing import CsvProcessing
 from garbage.services.FileService import FileService
 from garbage.services.ImageProcessingService import ImageProcessingService
-from garbage.services.process import process_schedule_to_csv, process_from_csv
+from garbage.services.process import process_schedule_to_csv, process_from_csv, detect_multipage, open_pdf, \
+    save_selected_page
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 RESOURCES_DIR = BASE_DIR / "resources"
@@ -20,8 +21,6 @@ processing_status = "start"
 
 st.title("OCR Harmonogramu Eko-Region")
 st.set_page_config(layout="wide")
-
-year = ""
 
 # --- inicjalizacja stanu ---
 if "step" not in st.session_state:
@@ -68,7 +67,7 @@ if st.session_state.step == 1:
             file_service.save_file(INPUT_FILE_PATH, uploaded_file)
             st.session_state.step = 2
             st.success("Plik wgrany ✔️")
-
+            st.rerun()
     with tab2:
         st.markdown("Wklej link do pliku z harmonogramem, który można znaleźć na stronie **[Eko-Region](https://eko-region.pl/harmonogram-odbioru-odpadow/)**")
         url = st.text_input("Link:", value="")
@@ -81,6 +80,7 @@ if st.session_state.step == 1:
                 api_processor.get_file_from_url(url, INPUT_FILE_PATH)
                 st.success(f"Pobrano plik ✔️")
                 st.session_state.step = 2
+                st.rerun()
             except Exception as e:
                 st.error(f"Błąd pobierania: {e}")
 
@@ -172,27 +172,56 @@ if st.session_state.step == 1:
                     api_processor.get_file_from_url(st.session_state.download_url, INPUT_FILE_PATH)
                     st.success("Pobrano plik ✔️")
                     st.session_state.step = 2
+                    st.rerun()
                 except Exception as e:
                     st.error(f"Błąd pobierania: {e}")
 
 # ============================================================
-# KROK 2 – przetwarzanie
+# KROK 2 – Wybór strony jeśli kilka
 # ============================================================
 if st.session_state.step == 2 and file_service.file_exists(INPUT_FILE_PATH):
+    is_multipage, num_of_pages = detect_multipage(INPUT_FILE_PATH)
+    if is_multipage:
+        st.text(
+            """
+                Wykryto, że PDF z harmonogramem zawiera kilka harmonogramów.
+                Wybierz stronę, którą chcesz procesować.
+            """
+        )
+        st.pdf(open_pdf(INPUT_FILE_PATH))
+        page_number = st.number_input(
+            "Wybierz stronę którą chcesz procesować",
+            min_value=1,
+            max_value=num_of_pages,
+            value=1
+        )
+        if st.button("Zapisz wybraną stronę"):
+            save_selected_page(INPUT_FILE_PATH, page_number)
+            st.session_state.step = 3
+            st.rerun()
+    else:
+        st.session_state.step = 3
+        st.rerun()
+
+
+# ============================================================
+# KROK 3 – przetwarzanie
+# ============================================================
+if st.session_state.step == 3 and file_service.file_exists(INPUT_FILE_PATH):
     if st.button("Rozpocznij OCR"):
         st.info("⏳ Przetwarzanie w toku...")
 
-        year = process_schedule_to_csv(BASE_DIR, INPUT_FILE_DIR / target_filename)
-        print(f"YEAR: {year}")
+        st.session_state.year = process_schedule_to_csv(BASE_DIR, INPUT_FILE_DIR / target_filename)
+        print(f"YEAR: {st.session_state.year}")
 
         st.success("Przetwarzanie zakończone!")
-        st.session_state.step = 3
+        st.session_state.step = 4
         st.rerun()  # odśwież ekran, aby wykryć nowy plik
 
 # ============================================================
-# KROK 3 – porównywanie i edycja
+# KROK 4 – porównywanie i edycja
 # ============================================================
-if st.session_state.step == 3:
+if st.session_state.step == 4:
     CSV_PATH = RESOURCES_TMP_DIR / CsvProcessing.TMP_SUBFOLDER / "harmonogram.csv"
     IMAGE_PATH = RESOURCES_TMP_DIR / ImageProcessingService.TMP_SUBFOLDER
     st.text(
@@ -224,15 +253,15 @@ if st.session_state.step == 3:
 
         if st.button("💾 Zapisz zmiany i procesuj dalej"):
             edited_df.to_csv(CSV_PATH, sep=";", index=False)
-            process_from_csv(BASE_DIR, CSV_PATH, year)
+            process_from_csv(BASE_DIR, CSV_PATH, st.session_state.year)
             st.success("Przetwarzanie zakończone!")
-            st.session_state.step = 4
+            st.session_state.step = 5
             st.rerun()
 
 # ============================================================
-# KROK 4 – generowanie i pobieranie pliku ICS
+# KROK 5 – generowanie i pobieranie pliku ICS
 # ============================================================
-if st.session_state.step == 4:
+if st.session_state.step == 5:
     #TODO: inna ścieżka do trzymania .ics
     ICS_PATH = BASE_DIR / "src"
     ics_file = file_service.find_by_pattern(ICS_PATH, "*.ics")[0].name  # TODO: co jak nie ma ?

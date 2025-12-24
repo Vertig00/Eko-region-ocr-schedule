@@ -32,3 +32,14 @@ def process_from_csv(base_dir, csv_path, year: int):
     data_from_csv = file_service.read_csv(csv_path)
     schedule = DataProcessor().map_garbage_data(data_from_csv, year)
     CalendarService(file_service, schedule).prepare_calendar()
+
+# TODO: maybe refactor/move somewhere
+def open_pdf(pdf_path):
+    with open(pdf_path, "rb") as f:
+        return f.read()
+
+def detect_multipage(pdf_path):
+    return PdfService(pdf_path).detect_multipage()
+
+def save_selected_page(pdf_path, page_number):
+    PdfService(pdf_path).save_selected_page(page_number)

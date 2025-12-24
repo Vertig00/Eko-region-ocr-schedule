@@ -11,3 +11,4 @@ dateparser
 beautifulsoup4
 streamlit
 pymupdf
+streamlit[pdf]
