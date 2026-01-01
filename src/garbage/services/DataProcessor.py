@@ -140,7 +140,7 @@ class DataProcessor:
         for cls in GarbageRegistry.registry:
             patterns = getattr(cls, "match_patterns", [])
 
-            if any(garbage_type in p.lower() for p in patterns):
+            if any(p.lower() in garbage_type for p in patterns):
                 return cls()
 
         raise ValueError(f"Unknown garbage type: {garbage_type!r}")
