@@ -1,6 +1,7 @@
 .venv
 bin
 smieci
+*.ics
 
 src/test
 src/resources
